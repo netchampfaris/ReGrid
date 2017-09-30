@@ -100,13 +100,28 @@ export default class ReGrid {
       this.data.rows.slice(this.start, this.end)
     );
 
+    this.dataAppended = this.pageLength;
+
     this.clusterize = new Clusterize({
       rows: initialData,
       scrollElem: this.bodyScrollable.get(0),
-      contentElem: this.bodyScrollable.find('tbody').get(0)
+      contentElem: this.bodyScrollable.find('tbody').get(0),
+      callbacks: {
+        scrollingProgress: this.onScrollProgress.bind(this)
+      }
     });
 
-    this.appendRemainingData();
+    // this.appendRemainingData();
+  }
+
+  onScrollProgress(progress) {
+    const dataScrolled = this.dataAppended * (progress / 100);
+
+    if (dataScrolled + 100 > this.dataAppended) {
+      this.start = this.end;
+      this.end = this.start + this.pageLength;
+      this.appendNextPage();
+    }
   }
 
   appendRemainingData() {
@@ -119,12 +134,9 @@ export default class ReGrid {
 
       const promise = new Promise(resolve => {
         setTimeout(() => {
-          const rows = this.data.rows.slice(this.start, this.end);
-          const data = this.getDataForClusterize(rows);
-
-          this.clusterize.append(data);
+          this.appendNextPage();
           resolve();
-        }, 0);
+        }, 1);
       });
 
       dataAppended += this.pageLength;
@@ -134,6 +146,14 @@ export default class ReGrid {
     return promises.reduce(
       (prev, cur) => prev.then(cur), Promise.resolve()
     );
+  }
+
+  appendNextPage() {
+    const rows = this.data.rows.slice(this.start, this.end);
+    const data = this.getDataForClusterize(rows);
+
+    this.clusterize.append(data);
+    this.dataAppended += rows.length;
   }
 
   getDataForClusterize(rows) {
