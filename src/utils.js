@@ -1,3 +1,9 @@
+
+function dashToCamelCase(str) {
+  // https://stackoverflow.com/a/6661012
+  return str.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+}
+
 function camelCaseToDash(str) {
   return str.replace(/([A-Z])/g, (g) => `-${g[0].toLowerCase()}`);
 }
@@ -193,5 +199,6 @@ export default {
   buildCSSRule,
   makeDataAttributeString,
   getDefault,
-  escapeRegExp
+  escapeRegExp,
+  dashToCamelCase
 };

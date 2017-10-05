@@ -1,4 +1,4 @@
-/* globals $, Clusterize */
+/* globals $, $$, Clusterize */
 import {
   getHeaderHTML,
   getBodyHTML,
@@ -7,41 +7,38 @@ import {
   prepareRowHeader,
   buildCSSRule,
   prepareRows,
-  getDefault
+  getDefault,
+  dashToCamelCase
 } from './utils.js';
-// import $ from 'jQuery';
-// import Clusterize from 'clusterize.js';
 
 import './style.scss';
 
+const DEFAULT_OPTIONS = {
+  data: [],
+  events: {},
+  editing: null,
+  enableLogs: false,
+  enableClusterize: false,
+  addSerialNoColumn: false
+};
+
 export default class ReGrid {
-  constructor({
-    wrapper,
-    events,
-    data,
-    editing,
-    addSerialNoColumn,
-    enableClusterize,
-    enableLogs
-  }) {
-    this.wrapper = $(wrapper);
-    if (this.wrapper.length === 0) {
+  constructor(wrapper, options) {
+    this.wrapper = wrapper;
+    if (!this.wrapper) {
       throw new Error('Invalid argument given for `wrapper`');
     }
 
-    this.events = getDefault(events, {});
-    this.addSerialNoColumn = getDefault(addSerialNoColumn, false);
-    this.enableClusterize = getDefault(enableClusterize, false);
-    this.enableLogs = getDefault(enableLogs, true);
-    this.editing = getDefault(editing, null);
+    this.options = Object.assign(DEFAULT_OPTIONS, options);
 
-    if (data) {
-      this.refresh(data);
+    if (this.options.data && this.options.data.columns.length > 0) {
+      this.refresh(this.options.data);
     }
   }
 
   makeDom() {
-    this.wrapper.html(`
+    this.wrapper.innerHTML = `
+      <style data-id='data-table'></style>
       <div class="data-table">
         <table class="data-table-header table table-bordered">
         </table>
@@ -53,12 +50,11 @@ export default class ReGrid {
           <div class="edit-popup"></div>
         </div>
       </div>
-    `);
+    `;
 
-    this.header = this.wrapper.find('.data-table-header');
-    this.bodyScrollable = this.wrapper.find('.body-scrollable');
-    // this.body = this.wrapper.find('.data-table-body');
-    this.footer = this.wrapper.find('.data-table-footer');
+    this.header = $('.data-table-header', this.wrapper);
+    this.bodyScrollable = $('.body-scrollable', this.wrapper);
+    this.$style = $('style[data-id="data-table"]', this.wrapper);
   }
 
   refresh(data) {
@@ -67,10 +63,9 @@ export default class ReGrid {
   }
 
   render() {
-    if (this.wrapper.find('.data-table').length === 0) {
+    if (!this.isDomLoaded()) {
       this.makeDom();
-      this.makeStyle();
-      this.bindEvents();
+      // this.bindEvents();
     }
 
     this.renderHeader();
@@ -78,9 +73,13 @@ export default class ReGrid {
     this.setDimensions();
   }
 
+  isDomLoaded() {
+    return $('.data-table', this.wrapper);
+  }
+
   renderHeader() {
     // fixed header
-    this.header.html(getHeaderHTML(this.data.columns));
+    this.header.innerHTML = getHeaderHTML(this.data.columns);
   }
 
   renderBody() {
@@ -93,11 +92,11 @@ export default class ReGrid {
 
   renderBodyHTML() {
     // scrollable body
-    this.bodyScrollable.html(`
+    this.bodyScrollable.innerHTML = `
       <table class="data-table-body table table-bordered">
         ${getBodyHTML(this.data.rows)}
       </table>
-    `);
+    `;
   }
 
   renderBodyWithClusterize() {
@@ -228,39 +227,43 @@ export default class ReGrid {
 
     // setting width as 0 will ensure that the
     // header doesn't take the available space
-    this.header.css({
+    $.style(this.header, {
       width: 0,
       margin: 0
     });
 
     // cache minWidth for each column
     this.minWidthMap = getDefault(this.minWidthMap, []);
-    this.header.find('.data-table-col').each(function () {
-      const col = $(this);
-      const width = parseInt(col.find('.content').css('width'), 10);
-      const colIndex = col.attr('data-col-index');
 
-      if (!self.minWidthMap[colIndex]) {
+    $$('.data-table-col', this.header).forEach(($col) => {
+      const width = $('.content', $col).offsetWidth;
+      const { colIndex } = this.getCellAttr($col);
+
+      if (!this.minWidthMap[colIndex]) {
         // only set this once
-        self.minWidthMap[colIndex] = width;
+        this.minWidthMap[colIndex] = width;
       }
     });
 
     // set initial width as naturally calculated by table's first row
-    this.bodyScrollable.find('.data-table-row[data-row-index="0"] .data-table-col').each(function () {
-      const $cell = $(this);
-      const width = parseInt($cell.find('.content').css('width'), 10);
-      const height = parseInt($cell.find('.content').css('height'), 10);
-      const { colIndex } = self.getCellAttr($cell);
+    $$('.data-table-row[data-row-index="0"] .data-table-col', this.bodyScrollable).forEach(($cell) => {
+      const width = $('.content', $cell).offsetWidth;
+      const height = $('.content', $cell).offsetHeight;
+      const { colIndex } = this.getCellAttr($cell);
 
+      console.log(width, height);
       self.setColumnWidth(colIndex, width);
-      self.setDefaultCellHeight(height);
     });
+
+    const defaultHeight = $('.data-table-col[data-col-index="0"][data-row-index="0"]',
+      this.bodyScrollable).offsetHeight;
+
+    this.setDefaultCellHeight(defaultHeight);
 
     this.setBodyWidth();
 
     this.setStyle('.data-table .body-scrollable', {
-      'margin-top': (this.header.height() + 1) + 'px'
+      'margin-top': (this.header.offsetHeight + 1) + 'px'
     });
 
     // hide edit cells by default
@@ -268,7 +271,9 @@ export default class ReGrid {
       display: 'none'
     });
 
-    this.bodyScrollable.find('.table').css('margin', 0);
+    $.style($('.table', this.bodyScrollable), {
+      margin: 0
+    });
   }
 
   bindFocusCell() {
@@ -550,22 +555,16 @@ export default class ReGrid {
   }
 
   setBodyWidth() {
-    this.bodyScrollable.css(
-      'width',
-      parseInt(this.header.css('width'), 10) + 1
-    );
+    $.style(this.bodyScrollable, {
+      width: this.header.offsetWidth + 1
+    });
   }
 
   setStyle(rule, styleMap) {
-    let styles = this.$style.text();
+    let styles = this.$style.innerHTML;
 
     styles = buildCSSRule(rule, styleMap, styles);
-    this.$style.html(styles);
-  }
-
-  makeStyle() {
-    this.$style = $('<style data-id="regrid"></style>')
-      .prependTo(this.wrapper);
+    this.$style.innerHTML = styles;
   }
 
   getColumn(colIndex) {
@@ -598,7 +597,22 @@ export default class ReGrid {
   }
 
   getCellAttr($cell) {
-    return $cell.data();
+    const dataAttributes = Array.from($cell.attributes)
+      .map(attrNode => attrNode.name)
+      .filter(attr => attr.startsWith('data-'));
+    const values = dataAttributes.map(attr => $cell.getAttribute(attr));
+    const out = {};
+
+    dataAttributes
+      .map((attr, i) => {
+        attr = attr.replace('data-', '');
+        const key = dashToCamelCase(attr);
+        const value = values[i];
+
+        out[key] = value;
+      });
+
+    return out;
   }
 
   log() {
