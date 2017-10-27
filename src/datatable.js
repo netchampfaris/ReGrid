@@ -1,6 +1,7 @@
 /* globals $, Clusterize */
+
+import Header from './Header';
 import {
-  getHeaderHTML,
   getBodyHTML,
   getRowHTML,
   getColumnHTML,
@@ -56,10 +57,14 @@ export default class DataTable {
       </div>
     `);
 
-    this.header = this.wrapper.find('.data-table-header');
+    // this.header = this.wrapper.find('.data-table-header');
     this.bodyScrollable = this.wrapper.find('.body-scrollable');
     // this.body = this.wrapper.find('.data-table-body');
     this.footer = this.wrapper.find('.data-table-footer');
+  }
+
+  domAppended() {
+    return this.wrapper.find('.data-table').length > 0;
   }
 
   refresh(data) {
@@ -68,20 +73,23 @@ export default class DataTable {
   }
 
   render() {
-    if (this.wrapper.find('.data-table').length === 0) {
+    if (!this.domAppended()) {
       this.makeDom();
+      this.setupHeader();
       this.makeStyle();
       this.bindEvents();
     }
 
-    this.renderHeader();
+    // this.renderHeader();
     this.renderBody();
     this.setDimensions();
   }
 
-  renderHeader() {
-    // fixed header
-    this.header.html(getHeaderHTML(this.data.columns));
+  setupHeader() {
+    this.header = new Header(
+      this.wrapper.find('.data-table-header'),
+      this.data.columns
+    );
   }
 
   renderBody() {
@@ -245,7 +253,6 @@ export default class DataTable {
   bindEvents() {
     this.bindFocusCell();
     this.bindEditCell();
-    this.bindResizeColumn();
     this.bindSortColumn();
     this.bindCheckbox();
   }
@@ -424,53 +431,6 @@ export default class DataTable {
     }
 
     this.currentCellEditing = null;
-  }
-
-  bindResizeColumn() {
-    const self = this;
-    let isDragging = false;
-    let $currCell, startWidth, startX;
-
-    this.header.on('mousedown', '.data-table-col', function (e) {
-      $currCell = $(this);
-      const colIndex = $currCell.attr('data-col-index');
-      const col = self.getColumn(colIndex);
-
-      if (col && col.resizable === false) {
-        return;
-      }
-
-      isDragging = true;
-      startWidth = $currCell.find('.content').width();
-      startX = e.pageX;
-    });
-
-    $('body').on('mouseup', function (e) {
-      if (!$currCell) return;
-      isDragging = false;
-      const colIndex = $currCell.attr('data-col-index');
-
-      if ($currCell) {
-        const width = parseInt($currCell.find('.content').css('width'), 10);
-
-        self.setColumnWidth(colIndex, width);
-        self.setBodyWidth();
-        $currCell = null;
-      }
-    });
-
-    $('body').on('mousemove', function (e) {
-      if (!isDragging) return;
-      const finalWidth = startWidth + (e.pageX - startX);
-      const colIndex = $currCell.attr('data-col-index');
-
-      if (self.getColumnMinWidth(colIndex) > finalWidth) {
-        // don't resize past minWidth
-        return;
-      }
-
-      self.setColumnHeaderWidth(colIndex, finalWidth);
-    });
   }
 
   bindSortColumn() {

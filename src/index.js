@@ -1,4 +1,4 @@
-import DataTable from './datatable.js';
+import DataTable from './DataTable.js';
 import packageJson from '../package.json';
 DataTable.__version__ = packageJson.version;
 
